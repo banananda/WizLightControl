@@ -2,14 +2,30 @@
   Localizable.strings
 */
 
-"light-setip" = "输入智能灯泡的IP";
-"light-signing-key" = "粘贴 UDP 签名密钥 (或导出的 JSON)";
-"signing-key-none" = "未设置签名密钥: 指令将不签名发送";
-"signing-key-invalid" = "签名密钥无效: 需要十六进制密钥或包含 udp_signing_key 的 JSON";
-"signing-key-valid" = "已设置签名密钥: 指令将被签名";
-"help-quit" = "退出";
-"static-light" = "􀀁 静态光";
-"dynamic-light" = "􀨁 动态光";
+"help-quit" = "退出 LightControl";
+"static-light" = "静态光";
+"dynamic-light" = "动态光";
+"power" = "电源";
+"status-on" = "开 · %d%%";
+"status-off" = "关";
+"status-connecting" = "正在连接…";
+"status-unreachable" = "无响应";
+"status-no-ip" = "请在设置中添加灯泡的 IP";
+"brightness" = "亮度";
+"color-temperature" = "色温";
+"speed" = "速度";
+"settings" = "设置…";
+"settings-title" = "设置";
+"back" = "返回";
+"section-bulb" = "灯泡";
+"ip-address" = "IP 地址";
+"section-security" = "本地控制安全";
+"signing-key" = "签名密钥";
+"light-signing-key" = "密钥或导出的 JSON";
+"signing-key-none" = "未设置密钥, 指令将不签名发送。";
+"signing-key-invalid" = "该密钥无效。";
+"signing-key-valid" = "指令将被签名。";
+"signing-key-hint" = "粘贴 32 位密钥, 或从 WiZ app 导出的整个家庭 JSON。";
 
 "title-warm-white" = "暖白";
 "title-daylight" = "日光";
@@ -21,7 +37,6 @@
 "title-focus" = "专注";
 "title-tv-time" = "电视时间";
 "title-plant-growth" = "植物生长";
-
 "title-candlelight" = "烛光";
 "title-breathing-light" = "呼吸灯";
 "title-golden-white" = "金白色";

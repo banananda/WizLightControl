@@ -2,14 +2,30 @@
   Localizable.strings
 */
 
-"light-setip" = "Geben Sie die IP der Smart-Glühbirne ein";
-"light-signing-key" = "UDP-Signaturschlüssel einfügen (oder exportiertes JSON)";
-"signing-key-none" = "Kein Signaturschlüssel: Befehle werden unsigniert gesendet";
-"signing-key-invalid" = "Ungültiger Signaturschlüssel: Hex-Schlüssel oder JSON mit udp_signing_key erwartet";
-"signing-key-valid" = "Signaturschlüssel gesetzt: Befehle werden signiert";
-"help-quit" = "Beenden";
-"static-light" = "Statisches Licht";
-"dynamic-light" = "Dynamisches Licht";
+"help-quit" = "LightControl beenden";
+"static-light" = "Statisch";
+"dynamic-light" = "Dynamisch";
+"power" = "Ein/Aus";
+"status-on" = "Ein · %d %%";
+"status-off" = "Aus";
+"status-connecting" = "Verbinden …";
+"status-unreachable" = "Keine Antwort";
+"status-no-ip" = "IP der Lampe in den Einstellungen hinzufügen";
+"brightness" = "Helligkeit";
+"color-temperature" = "Farbtemperatur";
+"speed" = "Geschwindigkeit";
+"settings" = "Einstellungen …";
+"settings-title" = "Einstellungen";
+"back" = "Zurück";
+"section-bulb" = "Lampe";
+"ip-address" = "IP-Adresse";
+"section-security" = "Sicherheit der lokalen Steuerung";
+"signing-key" = "Signaturschlüssel";
+"light-signing-key" = "Schlüssel oder exportiertes JSON";
+"signing-key-none" = "Kein Schlüssel gesetzt, Befehle werden unsigniert gesendet.";
+"signing-key-invalid" = "Dieser Schlüssel ist ungültig.";
+"signing-key-valid" = "Befehle werden signiert.";
+"signing-key-hint" = "Füge den 32-stelligen Schlüssel oder das ganze aus der WiZ-App exportierte Home-JSON ein.";
 
 "title-warm-white" = "Warmweiß";
 "title-daylight" = "Tageslicht";
@@ -21,7 +37,6 @@
 "title-focus" = "Fokus";
 "title-tv-time" = "TV-Zeit";
 "title-plant-growth" = "Pflanzenwachstum";
-
 "title-candlelight" = "Kerzenlicht";
 "title-breathing-light" = "Atemlicht";
 "title-golden-white" = "Goldenes Weiß";

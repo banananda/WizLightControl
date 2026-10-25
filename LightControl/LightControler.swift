@@ -10,11 +10,20 @@ import CryptoKit
 import Socket
 import Dispatch
 
+// 灯泡当前状态 (getPilot 的结果)
+struct LightState {
+    var isOn: Bool
+    var dimming: Int?
+    var temp: Int?
+    var sceneId: Int?
+}
+
 class LightControler {
     static let signingKeyDefaultsKey = "lightSigningKey"
 
     private let port: Int32 = 38899
     private let queue = DispatchQueue(label: "rryu.LightControl.udp")
+    private let readQueue = DispatchQueue(label: "rryu.LightControl.udp.read")
 
     // 解析签名密钥: 支持直接粘贴 32 位十六进制密钥, 或 WiZ app 导出的整个 JSON (取 udp_signing_key)
     static func parseSigningKey(_ input: String) -> SymmetricKey? {
@@ -84,6 +93,43 @@ class LightControler {
                 let s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
                 defer { s.close() }
                 try s.write(from: message, to: addr)
+            } catch let error {
+                print(error)
+            }
+        }
+    }
+
+    // 读取灯泡状态 (getPilot 不需要签名; 超时或无效 IP 时回调 nil, 回调在主线程)
+    func fetchState(ip: String, completion: @escaping (LightState?) -> Void) {
+        let ip = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ip.isEmpty else {
+            completion(nil)
+            return
+        }
+
+        readQueue.async { [port] in
+            var state: LightState?
+            defer { DispatchQueue.main.async { completion(state) } }
+
+            guard let addr = Socket.createAddress(for: ip, on: port) else { return }
+            do {
+                let s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
+                defer { s.close() }
+                try s.setReadTimeout(value: 1500)
+                try s.write(from: "{\"method\":\"getPilot\",\"params\":{}}", to: addr)
+
+                var data = Data()
+                let (bytesRead, _) = try s.readDatagram(into: &data)
+                guard bytesRead > 0,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let result = json["result"] as? [String: Any],
+                      let isOn = result["state"] as? Bool else {
+                    return
+                }
+                state = LightState(isOn: isOn,
+                                   dimming: result["dimming"] as? Int,
+                                   temp: result["temp"] as? Int,
+                                   sceneId: result["sceneId"] as? Int)
             } catch let error {
                 print(error)
             }
