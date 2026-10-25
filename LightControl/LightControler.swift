@@ -10,155 +10,61 @@ import Socket
 import Dispatch
 
 class LightControler {
-    var s: Socket!
-//    var ip: String
-//    
-//    init(ip: String) {
-//        self.ip = ip
-//    }
-    
-    //    //参数控制
-    //    func clampValue(value:Int, min:Int , max:Int) {
-    //        if value < min {
-    //            var value = min
-    //        }
-    //        if value > max {
-    //            var value = max
-    //        }
-    //    }
-    
-    // 发送信息
-//    {"method":"getPilot","params":{}}
-    
-    func messageSend(ip:String, sendMessage: String) {
-        let message = sendMessage
-        var readData:Data = message.data(using: .utf8)!
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-            _ = try s.readDatagram(into: &readData)
-            let resp = String(data: readData, encoding: .utf8)!
-            print(resp)
-        } catch let error {
-            print(error)
+    private let port: Int32 = 38899
+    private let queue = DispatchQueue(label: "rryu.LightControl.udp")
+
+    // 发送信息 (在后台线程发送, 无效 IP 时直接忽略)
+    private func send(ip: String, params: [String: Any]) {
+        let ip = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ip.isEmpty,
+              let body = try? JSONSerialization.data(withJSONObject: ["method": "setPilot", "params": params]),
+              let message = String(data: body, encoding: .utf8) else {
+            return
+        }
+
+        queue.async { [port] in
+            guard let addr = Socket.createAddress(for: ip, on: port) else {
+                print("Invalid light address: \(ip)")
+                return
+            }
+            do {
+                let s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
+                defer { s.close() }
+                try s.write(from: message, to: addr)
+            } catch let error {
+                print(error)
+            }
         }
     }
-    
-    func checkLightState(ip: String) -> Bool {
-        let message = """
-            {"method":"getPilot","params":{}}
-        """
-        var readData:Data = message.data(using: .utf8)!
-        let lightState:Bool = false
-        
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-            _ = try s.readDatagram(into: &readData)
-            let resp = String(data: readData, encoding: .utf8)!
-            print(resp)
-        } catch let error {
-            print(error)
-        }
-        return lightState
-    }
-    
-    
+
     // 开灯
     func turnOn(ip: String) {
-        let message = """
-        {
-            "method":"setPilot",
-            "params":{
-                "state":true
-            }
-        }
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
-        
+        send(ip: ip, params: ["state": true])
     }
-    
+
     // 关灯
     func turnOff(ip: String) {
-        let message = """
-        {
-            "method":"setPilot",
-            "params":{
-                "state":false
-            }
-        }
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
-    }    
-    
-    // 改变场景
-    func setScene(ip: String,scene: Int) {
-        let message = """
-        {"method": "setPilot", "params": {"sceneID": \(scene), "state": true}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["state": false])
     }
-    
+
+    // 改变场景
+    func setScene(ip: String, scene: Int) {
+        send(ip: ip, params: ["sceneID": scene, "state": true])
+    }
+
     // 调节色温
     func setTemp(ip: String, temp: Double = 4400) {
-        let message = """
-        {"method": "setPilot", "params": {"temp": \(temp)}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["temp": Int(temp.rounded())])
     }
-    
+
     // 调节亮度
     func setBrightess(ip: String, brightness: Double = 100) {
-        let message = """
-        {"method": "setPilot", "params": {"dimming": \(brightness), "state": true}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["dimming": Int(brightness.rounded()), "state": true])
     }
-    
+
     // 调节速度
     func setSpeed(ip: String, speed: Double = 100) {
-        let message = """
-        {"method": "setPilot", "params": {"speed": \(speed)}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["speed": Int(speed.rounded())])
     }
-    
+
 }

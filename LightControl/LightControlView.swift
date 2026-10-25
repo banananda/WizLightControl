@@ -23,15 +23,6 @@ struct LightControlView: View {
                 .foregroundColor(.primary)
             Spacer()
             
-            // 测试按钮
-//            Button {
-//                lightControl.checkLightState(ip: lightIp)
-//            } label: {
-//                Image(systemName: "questionmark.square.dashed")
-//                    .foregroundColor(.gray)
-//                    .font(.largeTitle)
-//            }.buttonStyle(.plain).help(Text("测试"))
-
             Button {
                 lightControl.turnOff(ip: lightIp)
             } label: {

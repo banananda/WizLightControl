@@ -16,8 +16,6 @@ struct MainView: View {
     @State var isEditing = false
     @State var lightControl = LightControler()
     
-    @State private var testContent: String = ""
-    
     var body: some View {
         VStack{
             
@@ -26,26 +24,6 @@ struct MainView: View {
             } else {
                 LightControlView(settingsOpen: $settingsOpen, lightBrightness: $lightBrightness, lightSpeed: $lightSpeed,lightTemp: $lightTemp,isEditing: $isEditing, lightControl: $lightControl, lightIp: $lightIp)
             }
-            // 自定义发送
-//            HStack {
-//                TextField("测试",text: $testContent)
-//                    .padding()
-//                    .frame(width:300, height: 40.0)
-//                    .textFieldStyle(.plain)
-//                    .multilineTextAlignment(.center)
-//                    .font(.title3)
-//                    .background {
-//                        RoundedRectangle(cornerRadius: 5.0)
-//                            .fill(.tertiary)
-//                    }
-//                Button {
-//                    lightControl.messageSend(ip: lightIp, sendMessage: testContent)
-//                } label: {
-//                    Text("发送")
-//                        .font(.title3)
-//                }
-//            }
-//            .padding()
             
             HStack(alignment: .center, spacing: 12) {
                 
