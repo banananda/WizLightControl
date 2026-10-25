@@ -3,6 +3,10 @@
 */
 
 "light-setip" = "Enter the IP of the smart bulb";
+"light-signing-key" = "Paste the UDP signing key (or exported JSON)";
+"signing-key-none" = "No signing key: commands are sent unsigned";
+"signing-key-invalid" = "Invalid signing key: expected hex key or JSON with udp_signing_key";
+"signing-key-valid" = "Signing key set: commands will be signed";
 "help-quit" = "Quit";
 "static-light" = "Static light";
 "dynamic-light" = "Dynamic light";

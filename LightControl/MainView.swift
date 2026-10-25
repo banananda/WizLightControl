@@ -10,6 +10,7 @@ import SwiftUI
 struct MainView: View {
     @State private var settingsOpen: Bool  = false
     @AppStorage("lightIp") var lightIp: String = ""
+    @AppStorage(LightControler.signingKeyDefaultsKey) var lightSigningKey: String = ""
     @AppStorage("lightBrightness") var lightBrightness: Double = 50
     @AppStorage("lightSpeed") var lightSpeed: Double = 50
     @AppStorage("lightTemp") var lightTemp: Double = 4400
@@ -20,7 +21,7 @@ struct MainView: View {
         VStack{
             
             if (settingsOpen) {
-                LightSetIp(settingsOpen: $settingsOpen, lightIp: $lightIp)
+                LightSetIp(settingsOpen: $settingsOpen, lightIp: $lightIp, lightSigningKey: $lightSigningKey)
             } else {
                 LightControlView(settingsOpen: $settingsOpen, lightBrightness: $lightBrightness, lightSpeed: $lightSpeed,lightTemp: $lightTemp,isEditing: $isEditing, lightControl: $lightControl, lightIp: $lightIp)
             }

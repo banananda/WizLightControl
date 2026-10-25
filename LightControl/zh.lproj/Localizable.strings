@@ -3,6 +3,10 @@
 */
 
 "light-setip" = "输入智能灯泡的IP";
+"light-signing-key" = "粘贴 UDP 签名密钥 (或导出的 JSON)";
+"signing-key-none" = "未设置签名密钥: 指令将不签名发送";
+"signing-key-invalid" = "签名密钥无效: 需要十六进制密钥或包含 udp_signing_key 的 JSON";
+"signing-key-valid" = "已设置签名密钥: 指令将被签名";
 "help-quit" = "退出";
 "static-light" = "􀀁 静态光";
 "dynamic-light" = "􀨁 动态光";
