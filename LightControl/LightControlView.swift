@@ -7,267 +7,298 @@
 
 import SwiftUI
 
+// 场景
+struct LightScene: Identifiable {
+    let id: Int
+    let icon: String
+    let titleKey: String
+    var title: String { titleKey.localized }
+}
+
+enum SceneMode: Hashable {
+    case staticLight
+    case dynamicLight
+}
+
+enum LightScenes {
+    static let staticScenes = [
+        LightScene(id: 11, icon: "lightbulb.led", titleKey: "title-warm-white"),
+        LightScene(id: 12, icon: "sun.max", titleKey: "title-daylight"),
+        LightScene(id: 13, icon: "snowflake", titleKey: "title-cool-white"),
+        LightScene(id: 14, icon: "moon", titleKey: "title-night-light"),
+        LightScene(id: 6, icon: "cup.and.saucer", titleKey: "title-comfort"),
+        LightScene(id: 17, icon: "paintpalette", titleKey: "title-primary-color"),
+        LightScene(id: 16, icon: "leaf", titleKey: "title-relax"),
+        LightScene(id: 15, icon: "person.and.background.dotted", titleKey: "title-focus"),
+        LightScene(id: 18, icon: "sparkles.tv", titleKey: "title-tv-time"),
+        LightScene(id: 19, icon: "tree", titleKey: "title-plant-growth"),
+    ]
+
+    static let dynamicScenes = [
+        LightScene(id: 29, icon: "flame", titleKey: "title-candlelight"),
+        LightScene(id: 31, icon: "water.waves", titleKey: "title-breathing-light"),
+        LightScene(id: 30, icon: "rays", titleKey: "title-golden-white"),
+        LightScene(id: 32, icon: "eyeglasses", titleKey: "title-steampunk"),
+        LightScene(id: 5, icon: "fireplace", titleKey: "title-fireplace"),
+        LightScene(id: 22, icon: "wind", titleKey: "title-autumn"),
+        LightScene(id: 26, icon: "fleuron", titleKey: "title-club"),
+        LightScene(id: 3, icon: "sunset", titleKey: "title-sunset"),
+        LightScene(id: 2, icon: "bolt.heart", titleKey: "title-romantic"),
+        LightScene(id: 4, icon: "party.popper", titleKey: "title-party"),
+        LightScene(id: 8, icon: "arrow.triangle.swap", titleKey: "title-soft-colors"),
+        LightScene(id: 20, icon: "camera.macro", titleKey: "title-spring"),
+        LightScene(id: 21, icon: "sun.haze", titleKey: "title-summer"),
+        LightScene(id: 7, icon: "tent.2", titleKey: "title-forest"),
+        LightScene(id: 24, icon: "bird", titleKey: "title-jungle"),
+        LightScene(id: 25, icon: "wineglass", titleKey: "title-mojito"),
+        LightScene(id: 1, icon: "sailboat", titleKey: "title-ocean"),
+        LightScene(id: 23, icon: "fish", titleKey: "title-deep-sea"),
+        LightScene(id: 27, icon: "gift", titleKey: "title-christmas"),
+        LightScene(id: 33, icon: "flame.circle", titleKey: "title-festival-of-lights"),
+        LightScene(id: 28, icon: "theatermasks", titleKey: "title-halloween"),
+        LightScene(id: 9, icon: "alarm", titleKey: "title-wake-up"),
+        LightScene(id: 10, icon: "teddybear", titleKey: "title-bedtime"),
+    ]
+
+    static func mode(for sceneId: Int) -> SceneMode? {
+        if staticScenes.contains(where: { $0.id == sceneId }) { return .staticLight }
+        if dynamicScenes.contains(where: { $0.id == sceneId }) { return .dynamicLight }
+        return nil
+    }
+}
+
+// macOS 26+ 使用 Liquid Glass, 旧系统使用分组背景
+extension View {
+    // 内容分组: Liquid Glass 下不再叠加背景, 只靠间距分组
+    @ViewBuilder
+    func panelGroup() -> some View {
+        if #available(macOS 26.0, *) {
+            self.padding(.horizontal, 4)
+        } else {
+            self
+                .padding(10)
+                .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
+    // 分段控件: macOS 26 只有 large 尺寸是胶囊形; flexible 让各段平分宽度, 与底部按钮对齐
+    @ViewBuilder
+    func panelSegmentedStyle() -> some View {
+        if #available(macOS 26.0, *) {
+            self.controlSize(.large).buttonSizing(.flexible).frame(maxWidth: .infinity)
+        } else {
+            self
+        }
+    }
+
+    // 圆形图标按钮 (返回按钮)
+    @ViewBuilder
+    func panelIconButtonStyle() -> some View {
+        if #available(macOS 26.0, *) {
+            self.buttonStyle(.glass).buttonBorderShape(.circle)
+        } else {
+            self.buttonStyle(.borderless)
+        }
+    }
+}
+
+struct SectionLabel: View {
+    let title: String
+    var trailing: String? = nil
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            if let trailing = trailing {
+                Text(trailing).monospacedDigit()
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 4)
+    }
+}
+
 struct LightControlView: View {
-    @Binding var settingsOpen: Bool
+    let lightControl: LightControler
+    @Binding var lightIp: String
+    @Binding var isOn: Bool?
+    let reachable: Bool
     @Binding var lightBrightness: Double
     @Binding var lightSpeed: Double
     @Binding var lightTemp: Double
-    @Binding var isEditing: Bool
-    @Binding var lightControl: LightControler
-    @Binding var lightIp: String
-    
-    var body: some View {
-        HStack(alignment: .center, spacing: 12) {
-            Text("LightController")
-                .font(.title.bold())
-                .foregroundColor(.primary)
-            Spacer()
-            
-            // 测试按钮
-//            Button {
-//                lightControl.checkLightState(ip: lightIp)
-//            } label: {
-//                Image(systemName: "questionmark.square.dashed")
-//                    .foregroundColor(.gray)
-//                    .font(.largeTitle)
-//            }.buttonStyle(.plain).help(Text("测试"))
+    @Binding var lightScene: Int
 
-            Button {
-                lightControl.turnOff(ip: lightIp)
-            } label: {
-                Image(systemName: "lightswitch.off.square")
-                    .foregroundColor(.gray)
-                    .font(.largeTitle)
-            }.buttonStyle(.plain).help(Text("关灯"))
-            
-            Button {
-                lightControl.turnOn(ip: lightIp)
-            } label: {
-                Image(systemName: "lightswitch.on.square.fill")
-                    .foregroundColor(.blue)
-                    .font(.largeTitle)
-            }.buttonStyle(.plain).help(Text("开灯"))
-        }.padding(10)
-        
-        // 亮度调整滑块
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "dial.low")
-                .foregroundColor(.black)
-                .font(.title3)
-                .symbolRenderingMode(.multicolor)
-            
-            Slider(
-                value: $lightBrightness,
-                in: 10...100,
-                onEditingChanged: { editing in
+    @State private var mode: SceneMode = .staticLight
+
+    private var powerBinding: Binding<Bool> {
+        Binding(
+            get: { isOn ?? false },
+            set: { on in
+                isOn = on
+                if on {
+                    lightControl.turnOn(ip: lightIp)
+                } else {
+                    lightControl.turnOff(ip: lightIp)
+                }
+            }
+        )
+    }
+
+    private var statusText: String {
+        if lightIp.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "status-no-ip".localized
+        }
+        if !reachable {
+            return "status-unreachable".localized
+        }
+        guard let isOn = isOn else {
+            return "status-connecting".localized
+        }
+        return isOn
+            ? String(format: "status-on".localized, Int(lightBrightness.rounded()))
+            : "status-off".localized
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header
+
+            // 亮度和色温
+            VStack(alignment: .leading, spacing: 8) {
+                SectionLabel(title: "brightness".localized)
+                sliderRow(value: $lightBrightness, in: 10...100,
+                          low: "sun.min", high: "sun.max", label: "brightness".localized) {
+                    isOn = true
                     lightControl.setBrightess(ip: lightIp, brightness: lightBrightness)
                 }
-            )
-            
-            Image(systemName: "dial.high.fill")
-                .foregroundColor(.black)
-                .font(.title3)
-                .symbolRenderingMode(.multicolor)
-        }
-        .padding()
-        .background{
-            RoundedRectangle(cornerRadius: 12,style:.circular)
-                .fill(.white)
-        }
-        
-        // 色温调整滑块
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: "snowflake.circle")
-                .foregroundColor(.black)
-                .font(.title3)
-                .symbolRenderingMode(.multicolor)
-            
-            Slider(
-                value: $lightTemp,
-                in: 2200...6500,
-//                step: 100,
-                onEditingChanged: { editing in
-                    lightControl.setTemp(ip: lightIp,temp: lightTemp)
-                }
-            ).tint(.blue)
-            
-            Image(systemName: "sun.max")
-                .foregroundColor(.black)
-                .font(.title3)
-                .symbolRenderingMode(.multicolor)
-        }
-        .padding()
-        .background{
-            RoundedRectangle(cornerRadius: 12,style:.circular)
-                .fill(.white)
-        }
-        
-        TabView {
-            StaticLightView(lightControl: $lightControl,lightIp: $lightIp)
-                .tabItem {
-                    Label("static-light".localized, systemImage: "circle.fill")
-                }
-            DynamicLightView(lightControl: $lightControl,lightSpeed: $lightSpeed, lightIp: $lightIp)
-                .tabItem {
-                    Label("dynamic-light".localized, systemImage: "circle.circle")
-                }
-        }
-    }
-}
 
+                SectionLabel(title: "color-temperature".localized, trailing: "\(Int((lightTemp / 100).rounded()) * 100) K")
+                    .padding(.top, 4)
+                sliderRow(value: $lightTemp, in: 2200...6500,
+                          low: "flame", high: "snowflake", label: "color-temperature".localized) {
+                    // 设置色温会退出场景; 松开时对齐到 100K
+                    lightScene = 0
+                    lightTemp = (lightTemp / 100).rounded() * 100
+                    lightControl.setTemp(ip: lightIp, temp: lightTemp)
+                }
+            }
+            .panelGroup()
 
-struct StaticLightView: View {
-    @Binding var lightControl: LightControler
-    @Binding var lightIp: String
-    
-    var body: some View {
-        Grid() {
-            GridRow {
-                ControlViewV(icon: "lightbulb.led", title: "title-warm-white".localized, color: .yellow,scene: 11)
-                ControlViewV(icon: "sun.max", title: "title-daylight".localized, color: .white,scene: 12)
-                ControlViewV(icon: "snowflake", title: "title-cool-white".localized, color: .blue,scene: 13)
+            Picker("", selection: $mode) {
+                Text("static-light".localized).tag(SceneMode.staticLight)
+                Text("dynamic-light".localized).tag(SceneMode.dynamicLight)
             }
-            Spacer()
-            GridRow {
-                ControlViewV(icon: "moon", title: "title-night-light".localized, color: .gray,scene: 14)
-                ControlViewV(icon: "cup.and.saucer", title: "title-comfort".localized, color: .yellow,scene: 6)
-                ControlViewV(icon: "paintpalette", title: "title-primary-color".localized, color: .yellow,scene: 17)
-                ControlViewV(icon: "leaf", title: "title-relax".localized, color: .purple,scene: 16)
-                ControlViewV(icon: "person.and.background.dotted", title: "title-focus".localized, color: .white,scene: 15)
-            }
-            
-            GridRow {
-                ControlViewV(icon: "sparkles.tv", title: "title-tv-time".localized, color: .blue,scene: 18)
-                ControlViewV(icon: "tree", title: "title-plant-growth".localized, color: .pink,scene: 19)
-            }
-        }
-        .padding()
-    }
-    
-    @ViewBuilder
-    func ControlViewV (icon:String, title: String, color: Color, scene: Int)->some View{
-        Button {
-            lightControl.setScene(ip: lightIp, scene: scene)
-        } label: {
-            VStack(spacing:10){
-                Image(systemName: icon)
-                    .font(.largeTitle)
-                    .foregroundColor(.black)
-                    .background{
-                        Circle()
-                            .fill(color.opacity(0.2))
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .panelSegmentedStyle()
+
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 4), spacing: 10) {
+                    ForEach(mode == .staticLight ? LightScenes.staticScenes : LightScenes.dynamicScenes) { scene in
+                        SceneButton(scene: scene, selected: scene.id == lightScene) {
+                            lightScene = scene.id
+                            isOn = true
+                            lightControl.setScene(ip: lightIp, scene: scene.id)
+                        }
                     }
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.black)
+                }
+                .padding(.vertical, 2)
             }
-            .frame(width: 70,height: 80)
-            .background{
-                RoundedRectangle(cornerRadius: 12,style: .continuous)
-                    .fill(.white)
-            }
-        }.buttonStyle(.borderless)
-    }
-}
+            .frame(height: 232)
 
-struct DynamicLightView: View {
-    @Binding var lightControl: LightControler
-    @Binding var lightSpeed: Double
-    @Binding var lightIp: String
-    var body: some View {
-        Grid() {
-            GridRow {
-                ControlViewV(icon: "microbe", title: "title-candlelight".localized, color: .yellow, scene: 29)
-                ControlViewV(icon: "water.waves", title: "title-breathing-light".localized, color: .yellow, scene: 31)
-                ControlViewV(icon: "rays", title: "title-golden-white".localized, color: .white, scene: 30)
-                ControlViewV(icon: "eyeglasses", title: "title-steampunk".localized, color: .yellow, scene: 32)
-            }
-            Spacer()
-            GridRow {
-                ControlViewV(icon: "fireplace", title: "title-fireplace".localized, color: .orange, scene: 5)
-                ControlViewV(icon: "wind", title: "title-autumn".localized, color: .orange, scene: 22)
-                ControlViewV(icon: "fleuron", title: "title-club".localized, color: .orange, scene: 26)
-                ControlViewV(icon: "sunset", title: "title-sunset".localized, color: .red, scene: 3)
-                ControlViewV(icon: "bolt.heart", title: "title-romantic".localized, color: .purple, scene: 2)
-            }
-            
-            GridRow {
-                ControlViewV(icon: "party.popper", title: "title-party".localized, color: .pink, scene: 4)
-                ControlViewV(icon: "arrow.triangle.swap", title: "title-soft-colors".localized, color: .pink, scene: 8)
-                ControlViewV(icon: "leaf", title: "title-spring".localized, color: .green, scene: 20)
-                ControlViewV(icon: "tshirt", title: "title-summer".localized, color: .yellow, scene: 21)
-                ControlViewV(icon: "tent.2", title: "title-forest".localized, color: .mint, scene: 7)
-            }
-            
-            GridRow {
-                ControlViewV(icon: "sparkles.tv", title: "title-jungle".localized, color: .green, scene: 24)
-                ControlViewV(icon: "wineglass", title: "title-mojito".localized, color: .cyan, scene: 25)
-                ControlViewV(icon: "sailboat", title: "title-ocean".localized, color: .teal, scene: 1)
-                ControlViewV(icon: "fish", title: "title-deep-sea".localized, color: .blue, scene: 23)
-                ControlViewV(icon: "gift", title: "title-christmas".localized, color: .red, scene: 27)
-            }
-            
-            GridRow {
-                ControlViewV(icon: "flame.circle", title: "title-festival-of-lights".localized, color: .yellow, scene: 33)
-                ControlViewV(icon: "theatermasks", title: "title-halloween".localized, color: .orange, scene: 28)
-            }
-            Spacer()
-            GridRow {
-                ControlViewV(icon: "alarm", title: "title-wake-up".localized, color: .white, scene: 9)
-                ControlViewV(icon: "teddybear", title: "title-bedtime".localized, color: .orange, scene: 10)
-            }
-            
-            // 速度调整滑块
-            HStack(alignment: .center, spacing: 12) {
-                Image(systemName: "tortoise")
-                    .foregroundColor(.black)
-                    .font(.title3)
-                    .symbolRenderingMode(.multicolor)
-                
-                Slider(
-                    value: $lightSpeed,
-                    in: 10...200,
-                    onEditingChanged: { editing in
+            // 只有动态场景使用速度
+            if mode == .dynamicLight {
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionLabel(title: "speed".localized)
+                    sliderRow(value: $lightSpeed, in: 10...200,
+                              low: "tortoise", high: "hare", label: "speed".localized) {
                         lightControl.setSpeed(ip: lightIp, speed: lightSpeed)
                     }
-                ).tint(.blue)
-                
-                Image(systemName: "hare")
-                    .foregroundColor(.black)
-                    .font(.title3)
-                    .symbolRenderingMode(.multicolor)
-            }
-            .padding()
-            .background{
-                RoundedRectangle(cornerRadius: 12,style:.circular)
-                    .fill(.white)
+                }
+                .panelGroup()
             }
         }
-        .padding(10)
+        .onAppear {
+            mode = LightScenes.mode(for: lightScene) ?? .staticLight
+        }
+        .onChange(of: lightScene) { sceneId in
+            if let sceneMode = LightScenes.mode(for: sceneId) {
+                mode = sceneMode
+            }
+        }
     }
 
-    @ViewBuilder
-    func ControlViewV (icon:String, title: String, color: Color, scene: Int)->some View{
-        Button {
-            lightControl.setScene(ip: lightIp, scene: scene)
-        } label: {
-            VStack(spacing:10){
-                Image(systemName: icon)
-                    .font(.largeTitle)
-                    .foregroundColor(.black)
-                    .background{
-                        Circle()
-                            .fill(color.opacity(0.2))
-                    }
-                Text(title)
+    private var header: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isOn == true ? "lightbulb.fill" : "lightbulb")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(isOn == true ? Color.white : Color.secondary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(isOn == true ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary)))
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("LightControl")
+                    .font(.headline)
+                Text(statusText)
                     .font(.caption)
-                    .foregroundColor(.black)
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: 70,height: 80)
-            .background{
-                RoundedRectangle(cornerRadius: 12,style: .continuous)
-                    .fill(.white)
+
+            Spacer()
+
+            Toggle("power".localized, isOn: powerBinding)
+                .toggleStyle(.switch)
+                .labelsHidden()
+                .help("power".localized)
+        }
+    }
+
+    // 滑块松开时才发送, 避免拖动时连续发包.
+    // 不设 step: macOS 26 会为每个 step 画刻度, 步长太细时只是一排密集的点
+    private func sliderRow(value: Binding<Double>, in range: ClosedRange<Double>,
+                           low: String, high: String, label: String,
+                           onCommit: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: low)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            Slider(value: value, in: range, onEditingChanged: { editing in
+                if !editing { onCommit() }
+            })
+            .accessibilityLabel(label)
+            Image(systemName: high)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
+struct SceneButton: View {
+    let scene: LightScene
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: scene.icon)
+                    .font(.system(size: 16))
+                    .foregroundStyle(selected ? Color.white : Color.primary)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(selected ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary)))
+                Text(scene.title)
+                    .font(.system(size: 10))
+                    .foregroundStyle(selected ? Color.primary : Color.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(height: 26, alignment: .top)
             }
-        }.buttonStyle(.borderless)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }

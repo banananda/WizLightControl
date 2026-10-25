@@ -6,159 +6,164 @@
 //
 
 import Foundation
+import CryptoKit
 import Socket
 import Dispatch
 
+// 灯泡当前状态 (getPilot 的结果)
+struct LightState {
+    var isOn: Bool
+    var dimming: Int?
+    var temp: Int?
+    var sceneId: Int?
+}
+
 class LightControler {
-    var s: Socket!
-//    var ip: String
-//    
-//    init(ip: String) {
-//        self.ip = ip
-//    }
-    
-    //    //参数控制
-    //    func clampValue(value:Int, min:Int , max:Int) {
-    //        if value < min {
-    //            var value = min
-    //        }
-    //        if value > max {
-    //            var value = max
-    //        }
-    //    }
-    
-    // 发送信息
-//    {"method":"getPilot","params":{}}
-    
-    func messageSend(ip:String, sendMessage: String) {
-        let message = sendMessage
-        var readData:Data = message.data(using: .utf8)!
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-            _ = try s.readDatagram(into: &readData)
-            let resp = String(data: readData, encoding: .utf8)!
-            print(resp)
-        } catch let error {
-            print(error)
+    static let signingKeyDefaultsKey = "lightSigningKey"
+
+    private let port: Int32 = 38899
+    private let queue = DispatchQueue(label: "rryu.LightControl.udp")
+    private let readQueue = DispatchQueue(label: "rryu.LightControl.udp.read")
+
+    // 解析签名密钥: 支持直接粘贴 32 位十六进制密钥, 或 WiZ app 导出的整个 JSON (取 udp_signing_key)
+    static func parseSigningKey(_ input: String) -> SymmetricKey? {
+        var hex = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        if hex.hasPrefix("{") {
+            guard let data = hex.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let key = json["udp_signing_key"] as? String else {
+                return nil
+            }
+            hex = key.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard !hex.isEmpty, hex.count % 2 == 0 else { return nil }
+
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(hex.count / 2)
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let next = hex.index(index, offsetBy: 2)
+            guard let byte = UInt8(hex[index..<next], radix: 16) else { return nil }
+            bytes.append(byte)
+            index = next
+        }
+        return SymmetricKey(data: bytes)
+    }
+
+    // 生成 setPilot 消息. 新固件 (1.34+) 需要签名: params 中加入 sigTs,
+    // 再对紧凑的 params JSON 做 HMAC-SHA256, base64 后放在顶层 hmac 字段
+    static func setPilotMessage(params: [String: Any], key: SymmetricKey?, now: Date = Date()) -> String? {
+        guard let key = key else {
+            guard let body = try? JSONSerialization.data(withJSONObject: ["method": "setPilot", "params": params]) else {
+                return nil
+            }
+            return String(data: body, encoding: .utf8)
+        }
+
+        var signedParams = params
+        signedParams["sigTs"] = Int(now.timeIntervalSince1970)
+        // 签名的字节必须与发送的 params 完全一致, 所以只序列化一次并原样拼接
+        guard let paramsData = try? JSONSerialization.data(withJSONObject: signedParams, options: [.sortedKeys]),
+              let paramsJson = String(data: paramsData, encoding: .utf8) else {
+            return nil
+        }
+        let mac = HMAC<SHA256>.authenticationCode(for: paramsData, using: key)
+        let hmac = Data(mac).base64EncodedString()
+        return "{\"method\":\"setPilot\",\"env\":\"pro\",\"params\":\(paramsJson),\"hmac\":\"\(hmac)\"}"
+    }
+
+    // 发送信息 (在后台线程发送, 无效 IP 时直接忽略; 设置了签名密钥时自动签名)
+    private func send(ip: String, params: [String: Any]) {
+        let ip = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ip.isEmpty else { return }
+
+        let keyInput = UserDefaults.standard.string(forKey: Self.signingKeyDefaultsKey) ?? ""
+        let key = Self.parseSigningKey(keyInput)
+        if key == nil && !keyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            print("Invalid UDP signing key, sending unsigned")
+        }
+        guard let message = Self.setPilotMessage(params: params, key: key) else { return }
+
+        queue.async { [port] in
+            guard let addr = Socket.createAddress(for: ip, on: port) else {
+                print("Invalid light address: \(ip)")
+                return
+            }
+            do {
+                let s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
+                defer { s.close() }
+                try s.write(from: message, to: addr)
+            } catch let error {
+                print(error)
+            }
         }
     }
-    
-    func checkLightState(ip: String) -> Bool {
-        let message = """
-            {"method":"getPilot","params":{}}
-        """
-        var readData:Data = message.data(using: .utf8)!
-        let lightState:Bool = false
-        
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-            _ = try s.readDatagram(into: &readData)
-            let resp = String(data: readData, encoding: .utf8)!
-            print(resp)
-        } catch let error {
-            print(error)
+
+    // 读取灯泡状态 (getPilot 不需要签名; 超时或无效 IP 时回调 nil, 回调在主线程)
+    func fetchState(ip: String, completion: @escaping (LightState?) -> Void) {
+        let ip = ip.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !ip.isEmpty else {
+            completion(nil)
+            return
         }
-        return lightState
+
+        readQueue.async { [port] in
+            var state: LightState?
+            defer { DispatchQueue.main.async { completion(state) } }
+
+            guard let addr = Socket.createAddress(for: ip, on: port) else { return }
+            do {
+                let s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
+                defer { s.close() }
+                try s.setReadTimeout(value: 1500)
+                try s.write(from: "{\"method\":\"getPilot\",\"params\":{}}", to: addr)
+
+                var data = Data()
+                let (bytesRead, _) = try s.readDatagram(into: &data)
+                guard bytesRead > 0,
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      let result = json["result"] as? [String: Any],
+                      let isOn = result["state"] as? Bool else {
+                    return
+                }
+                state = LightState(isOn: isOn,
+                                   dimming: result["dimming"] as? Int,
+                                   temp: result["temp"] as? Int,
+                                   sceneId: result["sceneId"] as? Int)
+            } catch let error {
+                print(error)
+            }
+        }
     }
-    
-    
+
     // 开灯
     func turnOn(ip: String) {
-        let message = """
-        {
-            "method":"setPilot",
-            "params":{
-                "state":true
-            }
-        }
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
-        
+        send(ip: ip, params: ["state": true])
     }
-    
+
     // 关灯
     func turnOff(ip: String) {
-        let message = """
-        {
-            "method":"setPilot",
-            "params":{
-                "state":false
-            }
-        }
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
-    }    
-    
-    // 改变场景
-    func setScene(ip: String,scene: Int) {
-        let message = """
-        {"method": "setPilot", "params": {"sceneID": \(scene), "state": true}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["state": false])
     }
-    
+
+    // 改变场景
+    func setScene(ip: String, scene: Int) {
+        send(ip: ip, params: ["sceneID": scene, "state": true])
+    }
+
     // 调节色温
     func setTemp(ip: String, temp: Double = 4400) {
-        let message = """
-        {"method": "setPilot", "params": {"temp": \(temp)}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["temp": Int(temp.rounded())])
     }
-    
+
     // 调节亮度
     func setBrightess(ip: String, brightness: Double = 100) {
-        let message = """
-        {"method": "setPilot", "params": {"dimming": \(brightness), "state": true}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["dimming": Int(brightness.rounded()), "state": true])
     }
-    
+
     // 调节速度
     func setSpeed(ip: String, speed: Double = 100) {
-        let message = """
-        {"method": "setPilot", "params": {"speed": \(speed)}}
-    """
-        do {
-            s = try Socket.create(family: .inet, type: .datagram, proto: .udp)
-            let addr = Socket.createAddress(for: ip, on: 38899)!
-            try s.write(from: message, to: addr)
-        } catch let error {
-            print(error)
-        }
+        send(ip: ip, params: ["speed": Int(speed.rounded())])
     }
-    
+
 }

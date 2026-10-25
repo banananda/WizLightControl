@@ -10,79 +10,105 @@ import SwiftUI
 struct MainView: View {
     @State private var settingsOpen: Bool  = false
     @AppStorage("lightIp") var lightIp: String = ""
+    @AppStorage(LightControler.signingKeyDefaultsKey) var lightSigningKey: String = ""
     @AppStorage("lightBrightness") var lightBrightness: Double = 50
     @AppStorage("lightSpeed") var lightSpeed: Double = 50
     @AppStorage("lightTemp") var lightTemp: Double = 4400
-    @State var isEditing = false
+    @AppStorage("lightScene") var lightScene: Int = 0
+    @State private var isOn: Bool?
+    @State private var reachable = true
     @State var lightControl = LightControler()
-    
-    @State private var testContent: String = ""
-    
+
     var body: some View {
-        VStack{
-            
+        VStack(alignment: .leading, spacing: 14) {
+
             if (settingsOpen) {
-                LightSetIp(settingsOpen: $settingsOpen, lightIp: $lightIp)
+                LightSetIp(settingsOpen: $settingsOpen, lightIp: $lightIp, lightSigningKey: $lightSigningKey)
             } else {
-                LightControlView(settingsOpen: $settingsOpen, lightBrightness: $lightBrightness, lightSpeed: $lightSpeed,lightTemp: $lightTemp,isEditing: $isEditing, lightControl: $lightControl, lightIp: $lightIp)
+                LightControlView(lightControl: lightControl, lightIp: $lightIp, isOn: $isOn, reachable: reachable,
+                                 lightBrightness: $lightBrightness, lightSpeed: $lightSpeed, lightTemp: $lightTemp,
+                                 lightScene: $lightScene)
             }
-            // 自定义发送
-//            HStack {
-//                TextField("测试",text: $testContent)
-//                    .padding()
-//                    .frame(width:300, height: 40.0)
-//                    .textFieldStyle(.plain)
-//                    .multilineTextAlignment(.center)
-//                    .font(.title3)
-//                    .background {
-//                        RoundedRectangle(cornerRadius: 5.0)
-//                            .fill(.tertiary)
-//                    }
-//                Button {
-//                    lightControl.messageSend(ip: lightIp, sendMessage: testContent)
-//                } label: {
-//                    Text("发送")
-//                        .font(.title3)
-//                }
-//            }
-//            .padding()
-            
-            HStack(alignment: .center, spacing: 12) {
-                
-                Button {
-                    if (settingsOpen){
-                        withAnimation(){
-                            settingsOpen.toggle()
-                        }
-                    } else {
-                        withAnimation(){
-                            settingsOpen.toggle()
-                        }
-                    }
-                } label: {
-                    Image( systemName: settingsOpen ? "chevron.backward.circle.fill" : "gear")
-                        .foregroundColor(.primary)
-                        .font(.title2)
-                }.buttonStyle(.borderless)
-                
-                Spacer()
-                Button {
-                    withAnimation(){
-                        NSApplication.shared.terminate(nil)
-                    }
-                } label: {
-                    Image(systemName: "power.circle.fill")
-                        .foregroundColor(.primary)
-                        .font(.title2)
-                }
-                .buttonStyle(.plain).help(Text("help-quit".localized))
-            }
-            .padding(.horizontal)
-            .padding(.vertical,10)
-            
+
+            footer
         }
-        .padding(10)
-        .frame(width: 420)
+        .padding(14)
+        .frame(width: 300)
+        .onAppear(perform: refresh)
+        // 每次打开菜单栏窗口时刷新灯泡状态
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            refresh()
+        }
+        .onChange(of: settingsOpen) { open in
+            if !open { refresh() }
+        }
+    }
+
+    @ViewBuilder
+    private var footer: some View {
+        if #available(macOS 26.0, *) {
+            HStack(spacing: 8) {
+                if !settingsOpen {
+                    settingsButton
+                        .frame(maxWidth: .infinity)
+                }
+                quitButton
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.glass)
+            .controlSize(.large)
+        } else {
+            VStack(spacing: 8) {
+                Divider()
+                HStack {
+                    if !settingsOpen {
+                        settingsButton
+                    }
+                    Spacer()
+                    quitButton
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.primary)
+            }
+        }
+    }
+
+    private var settingsButton: some View {
+        Button {
+            withAnimation {
+                settingsOpen = true
+            }
+        } label: {
+            Text("settings".localized)
+                .frame(maxWidth: .infinity)
+        }
+        .keyboardShortcut(",")
+    }
+
+    private var quitButton: some View {
+        Button {
+            NSApplication.shared.terminate(nil)
+        } label: {
+            Text("help-quit".localized)
+                .frame(maxWidth: .infinity)
+        }
+        .keyboardShortcut("q")
+    }
+
+    // 读取灯泡当前状态, 同步开关, 亮度, 色温和场景
+    private func refresh() {
+        lightControl.fetchState(ip: lightIp) { state in
+            reachable = state != nil
+            guard let state = state else { return }
+            isOn = state.isOn
+            if let dimming = state.dimming {
+                lightBrightness = Double(dimming)
+            }
+            if let temp = state.temp, temp > 0 {
+                lightTemp = Double(temp)
+            }
+            lightScene = state.sceneId ?? 0
+        }
     }
 }
 
